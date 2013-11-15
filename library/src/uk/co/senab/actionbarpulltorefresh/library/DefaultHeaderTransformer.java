@@ -182,7 +182,7 @@ public class DefaultHeaderTransformer extends PullToRefreshAttacher.HeaderTransf
     }
 
     @Override
-    public boolean hideHeaderView() {
+    public boolean hideHeaderView(boolean fromTouch) {
         final boolean changeVis = mHeaderView.getVisibility() != View.GONE;
 
         if (changeVis) {

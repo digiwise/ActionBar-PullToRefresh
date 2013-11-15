@@ -545,8 +545,8 @@ public class PullToRefreshAttacher implements View.OnTouchListener {
 		}
 	}
 
-	void hideHeaderView() {
-		if (mHeaderTransformer.hideHeaderView()) {
+	void hideHeaderView(boolean fromTouch) {
+		if (mHeaderTransformer.hideHeaderView(fromTouch)) {
             if (mHeaderViewListener != null) {
                 mHeaderViewListener.onStateChanged(mHeaderView,
                         HeaderViewListener.STATE_HIDDEN);
@@ -624,7 +624,7 @@ public class PullToRefreshAttacher implements View.OnTouchListener {
         }
 
 		// Hide Header View
-		hideHeaderView();
+		hideHeaderView(fromTouch);
 	}
 
 	private void startRefresh(View view, boolean fromTouch) {
@@ -769,10 +769,11 @@ public class PullToRefreshAttacher implements View.OnTouchListener {
 
         /**
          * Called when the Header View should be made invisible, usually with an animation.
+         * @param fromTouch 
          *
          * @return true if the visibility has changed.
          */
-        public abstract boolean hideHeaderView();
+        public abstract boolean hideHeaderView(boolean fromTouch);
 
         /**
          * Called when the Activity's configuration has changed.
