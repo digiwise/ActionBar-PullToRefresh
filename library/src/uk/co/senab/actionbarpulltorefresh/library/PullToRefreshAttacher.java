@@ -505,7 +505,7 @@ public class PullToRefreshAttacher implements View.OnTouchListener {
 		if (DEBUG) {
 			Log.d(LOG_TAG, "onPullStarted");
 		}
-		showHeaderView();
+		showHeaderView(true);
 		mPullBeginY = y;
 	}
 
@@ -537,11 +537,10 @@ public class PullToRefreshAttacher implements View.OnTouchListener {
 		}
 	}
 
-	void showHeaderView() {
-		if (mHeaderTransformer.showHeaderView()) {
+	void showHeaderView(boolean fromTouch) {
+		if (mHeaderTransformer.showHeaderView(fromTouch)) {
             if (mHeaderViewListener != null) {
-                mHeaderViewListener.onStateChanged(mHeaderView,
-                        HeaderViewListener.STATE_VISIBLE);
+                mHeaderViewListener.onStateChanged(mHeaderView, HeaderViewListener.STATE_VISIBLE);
             }
 		}
 	}
@@ -644,7 +643,7 @@ public class PullToRefreshAttacher implements View.OnTouchListener {
 		mHeaderTransformer.onRefreshStarted();
 
 		// Show Header View
-		showHeaderView();
+		showHeaderView(fromTouch);
 
 		// Post a runnable to minimize the refresh header
 		if (mRefreshMinimize) {
@@ -762,10 +761,11 @@ public class PullToRefreshAttacher implements View.OnTouchListener {
 
         /**
          * Called when the Header View should be made visible, usually with an animation.
+         * @param fromTouch 
          *
          * @return true if the visibility has changed.
          */
-        public abstract boolean showHeaderView();
+        public abstract boolean showHeaderView(boolean fromTouch);
 
         /**
          * Called when the Header View should be made invisible, usually with an animation.
