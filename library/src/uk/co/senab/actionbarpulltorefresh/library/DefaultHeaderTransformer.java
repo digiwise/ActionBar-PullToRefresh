@@ -25,7 +25,6 @@ import android.content.Context;
 import android.content.res.Configuration;
 import android.content.res.TypedArray;
 import android.graphics.PixelFormat;
-import android.graphics.PorterDuff;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.util.TypedValue;
@@ -33,26 +32,33 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.AccelerateInterpolator;
 import android.view.animation.Interpolator;
-import android.widget.ProgressBar;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 
-import uk.co.senab.actionbarpulltorefresh.library.platform.SDK11;
+import uk.co.senab.actionbarpulltorefresh.library.sdk.Compat;
+import uk.co.senab.actionbarpulltorefresh.library.widget.PullToRefreshProgressBar;
 
 /**
  * Default Header Transformer.
  */
-public class DefaultHeaderTransformer extends PullToRefreshAttacher.HeaderTransformer {
+public class DefaultHeaderTransformer extends HeaderTransformer {
+
+    public static final int PROGRESS_BAR_STYLE_INSIDE = 0;
+    public static final int PROGRESS_BAR_STYLE_OUTSIDE = 1;
 
     private View mHeaderView;
     private ViewGroup mContentLayout;
     private TextView mHeaderTextView;
-    private ProgressBar mHeaderProgressBar;
+    private PullToRefreshProgressBar mHeaderProgressBar;
 
     private CharSequence mPullRefreshLabel, mRefreshingLabel, mReleaseLabel;
 
-    private boolean mUseCustomProgressColor = false;
     private int mProgressDrawableColor;
+    private float mProgressCornerRadius;
+
     private long mAnimationDuration;
+    private int mProgressBarStyle;
+    private int mProgressBarHeight = RelativeLayout.LayoutParams.WRAP_CONTENT;
 
     private final Interpolator mInterpolator = new AccelerateInterpolator();
 
@@ -70,7 +76,7 @@ public class DefaultHeaderTransformer extends PullToRefreshAttacher.HeaderTransf
         mHeaderView = headerView;
 
         // Get ProgressBar and TextView
-        mHeaderProgressBar = (ProgressBar) headerView.findViewById(R.id.ptr_progress);
+        mHeaderProgressBar = (PullToRefreshProgressBar) headerView.findViewById(R.id.ptr_progress);
         mHeaderTextView = (TextView) headerView.findViewById(R.id.ptr_text);
         mContentLayout = (ViewGroup) headerView.findViewById(R.id.ptr_content);
 
@@ -82,11 +88,19 @@ public class DefaultHeaderTransformer extends PullToRefreshAttacher.HeaderTransf
         mAnimationDuration = activity.getResources()
                 .getInteger(android.R.integer.config_shortAnimTime);
 
+        mProgressDrawableColor = activity.getResources()
+                .getColor(R.color.default_progress_bar_color);
+
+        mProgressCornerRadius = activity.getResources()
+                .getDimensionPixelSize(R.dimen.default_corner_radius);
+
         // Setup the View styles
         setupViewsFromStyles(activity, headerView);
 
-        // Apply any custom ProgressBar colors
-        applyProgressBarColor();
+        applyProgressBarStyle();
+
+        // Apply any custom ProgressBar colors and corner radius
+        applyProgressBarSettings();
 
         // FIXME: I do not like this call here
         onReset();
@@ -115,9 +129,7 @@ public class DefaultHeaderTransformer extends PullToRefreshAttacher.HeaderTransf
         // Reset the Content Layout
         if (mContentLayout != null) {
             mContentLayout.setVisibility(View.VISIBLE);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-                SDK11.setAlpha(mContentLayout, 1f);
-            }
+            Compat.setAlpha(mContentLayout, 1f);
         }
     }
 
@@ -207,8 +219,7 @@ public class DefaultHeaderTransformer extends PullToRefreshAttacher.HeaderTransf
     }
 
     /**
-     * Set color to apply to the progress bar. Automatically enables usage of the custom color. Use
-     * {@link #setProgressBarColorEnabled(boolean)} to disable and re-enable the custom color usage.
+     * Set color to apply to the progress bar.
      * <p/>
      * The best way to apply a color is to load the color from resources: {@code
      * setProgressBarColor(getResources().getColor(R.color.your_color_name))}.
@@ -217,18 +228,39 @@ public class DefaultHeaderTransformer extends PullToRefreshAttacher.HeaderTransf
      */
     public void setProgressBarColor(int color) {
         mProgressDrawableColor = color;
-        setProgressBarColorEnabled(true);
+        applyProgressBarSettings();
     }
 
     /**
-     * Enable or disable the use of a custom progress bar color. You can set what color to use with
-     * {@link #setProgressBarColor(int)}, which also automatically enables custom color usage.
+     * Set the rounded corner radius.
+     *
+     * @param radiusPx
      */
-    public void setProgressBarColorEnabled(boolean enabled) {
-        mUseCustomProgressColor = enabled;
-        applyProgressBarColor();
+    public void setProgressBarCornerRadius(float radiusPx) {
+        mProgressCornerRadius = Math.max(radiusPx, 0f);
+        applyProgressBarSettings();
     }
 
+    /**
+     * Set the progress bar style. {@code style} must be one of {@link #PROGRESS_BAR_STYLE_OUTSIDE}
+     * or {@link #PROGRESS_BAR_STYLE_INSIDE}.
+     */
+    public void setProgressBarStyle(int style) {
+        if (mProgressBarStyle != style) {
+            mProgressBarStyle = style;
+            applyProgressBarStyle();
+        }
+    }
+
+    /**
+     * Set the progress bar height.
+     */
+    public void setProgressBarHeight(int height) {
+        if (mProgressBarHeight != height) {
+            mProgressBarHeight = height;
+            applyProgressBarStyle();
+        }
+    }
 
     /**
      * Set Text to show to prompt the user is pull (or keep pulling).
@@ -266,9 +298,8 @@ public class DefaultHeaderTransformer extends PullToRefreshAttacher.HeaderTransf
 
         // Retrieve the Action Bar size from the app theme or the Action Bar's style
         if (mContentLayout != null) {
-            final int height = styleAttrs
-                    .getDimensionPixelSize(R.styleable.PullToRefreshHeader_ptrHeaderHeight,
-                            getActionBarSize(activity));
+            final int height = styleAttrs.getDimensionPixelSize(
+                    R.styleable.PullToRefreshHeader_ptrHeaderHeight, getActionBarSize(activity));
             mContentLayout.getLayoutParams().height = height;
             mContentLayout.requestLayout();
         }
@@ -297,9 +328,21 @@ public class DefaultHeaderTransformer extends PullToRefreshAttacher.HeaderTransf
 
         // Retrieve the Progress Bar Color the style
         if (styleAttrs.hasValue(R.styleable.PullToRefreshHeader_ptrProgressBarColor)) {
-            mUseCustomProgressColor = true;
-            mProgressDrawableColor = styleAttrs
-                    .getColor(R.styleable.PullToRefreshHeader_ptrProgressBarColor, 0);
+            mProgressDrawableColor = styleAttrs.getColor(
+                    R.styleable.PullToRefreshHeader_ptrProgressBarColor, mProgressDrawableColor);
+        }
+
+        if (styleAttrs.hasValue(R.styleable.PullToRefreshHeader_ptrProgressBarCornerRadius)) {
+            mProgressCornerRadius = (float) styleAttrs.getDimensionPixelSize(
+                    R.styleable.PullToRefreshHeader_ptrProgressBarCornerRadius, 0);
+        }
+
+        mProgressBarStyle = styleAttrs.getInt(
+                R.styleable.PullToRefreshHeader_ptrProgressBarStyle, PROGRESS_BAR_STYLE_OUTSIDE);
+
+        if(styleAttrs.hasValue(R.styleable.PullToRefreshHeader_ptrProgressBarHeight)) {
+            mProgressBarHeight = styleAttrs.getDimensionPixelSize(
+                    R.styleable.PullToRefreshHeader_ptrProgressBarHeight, mProgressBarHeight);
         }
 
         // Retrieve the text strings from the style (if they're set)
@@ -317,17 +360,26 @@ public class DefaultHeaderTransformer extends PullToRefreshAttacher.HeaderTransf
         styleAttrs.recycle();
     }
 
-    private void applyProgressBarColor() {
+    private void applyProgressBarStyle() {
+        RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.MATCH_PARENT, mProgressBarHeight);
+
+        switch (mProgressBarStyle) {
+            case PROGRESS_BAR_STYLE_INSIDE:
+                lp.addRule(RelativeLayout.ALIGN_BOTTOM, R.id.ptr_content);
+                break;
+            case PROGRESS_BAR_STYLE_OUTSIDE:
+                lp.addRule(RelativeLayout.BELOW, R.id.ptr_content);
+                break;
+        }
+
+        mHeaderProgressBar.setLayoutParams(lp);
+    }
+
+    private void applyProgressBarSettings() {
         if (mHeaderProgressBar != null) {
-            if (mUseCustomProgressColor) {
-                mHeaderProgressBar.getProgressDrawable()
-                        .setColorFilter(mProgressDrawableColor, PorterDuff.Mode.SRC_ATOP);
-                mHeaderProgressBar.getIndeterminateDrawable()
-                        .setColorFilter(mProgressDrawableColor, PorterDuff.Mode.SRC_ATOP);
-            } else {
-                mHeaderProgressBar.getProgressDrawable().clearColorFilter();
-                mHeaderProgressBar.getIndeterminateDrawable().clearColorFilter();
-            }
+            mHeaderProgressBar.setProgressBarColor(mProgressDrawableColor);
+            mHeaderProgressBar.setProgressBarCornerRadius(mProgressCornerRadius);
         }
     }
 
