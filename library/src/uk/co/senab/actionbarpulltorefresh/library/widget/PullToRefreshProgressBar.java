@@ -99,6 +99,10 @@ public class PullToRefreshProgressBar extends View implements
         setProgressState(progress, mProgressMax, mIndeterminate);
     }
 
+    public synchronized int getProgress() {
+        return mProgress;
+    }
+
     public synchronized void setProgressBarColor(int color) {
         mProgressBarColor = color;
         invalidate();
