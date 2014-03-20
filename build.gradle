@@ -2,22 +2,114 @@ buildscript {
     repositories {
         mavenCentral()
     }
-
     dependencies {
-        classpath 'com.android.tools.build:gradle:0.6.+'
+        classpath 'com.android.tools.build:gradle:0.9.+'
     }
 }
 
-def isReleaseBuild() {
-    return version.contains("SNAPSHOT") == false
+apply plugin: 'android-library'
+
+dependencies {
+    compile fileTree(dir: 'libs', include: '*.jar')
 }
 
-allprojects {
-    group = GROUP
+android {
+    compileSdkVersion 18
+    buildToolsVersion "19.0.0"
 
-    repositories {
-        mavenCentral()
+    sourceSets {
+        main {
+            manifest.srcFile 'library/AndroidManifest.xml'
+            java.srcDirs = ['library/src']
+            resources.srcDirs = ['library/src']
+            aidl.srcDirs = ['library/src']
+            renderscript.srcDirs = ['library/src']
+            res.srcDirs = ['library/res']
+            assets.srcDirs = ['library/assets']
+        }
+
+        // Move the tests to tests/java, tests/res, etc...
+        instrumentTest.setRoot('tests')
+
+        // Move the build types to build-types/<type>
+        // For instance, build-types/debug/java, build-types/debug/AndroidManifest.xml, ...
+        // This moves them out of them default location under src/<type>/... which would
+        // conflict with src/ being used by the main source set.
+        // Adding new build types or product flavors should be accompanied
+        // by a similar customization.
+        debug.setRoot('build-types/debug')
+        release.setRoot('build-types/release')
     }
 }
 
-apply plugin: 'android-reporting'
+apply plugin: 'maven'
+//apply plugin: 'sigining'
+
+version = "0.0.1"
+group = "uk.co.senab"
+
+configurations {
+    archives {
+        extendsFrom configurations.default
+    }
+}
+
+//signing {
+//    required { has("release") && gradle.taskGraph.hasTask("uploadArchives") }
+//    sign configurations.archives
+//}
+
+afterEvaluate { project ->
+    uploadArchives {
+        configuration = configurations.archives
+        repositories.mavenDeployer {
+            //beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+
+            repository(url: NEXUS_URL) {
+                authentication(userName: NEXUS_USERNAME,
+                        password: NEXUS_PASSWORD)
+            }
+
+            pom.project {
+                name 'ActionBar-PullToRefresh'
+                packaging 'aar'
+                description 'Pull to refresh control used in actionbar and actionbarsherlock'
+                url 'https://github.com/foursquare/ActionBar-PullToRefresh'
+
+                scm {
+                    url 'scm:git@github.com:foursquare/ActionBar-PullToRefresh.git'
+                    connection 'scm:git@github.com:foursquare/ActionBar-PullToRefresh.git'
+                    developerConnection 'scm:git@github.com:foursquare/ActionBar-PullToRefresh.git'
+                }
+
+                developers {
+                    developer {
+                        id 'kylefowler'
+                        name 'Kyle Fowler'
+                        email 'kyle.e.fowler@gmail.com'
+                    }
+                }
+            }
+        }
+    }
+
+    /*task androidJavadocs(type: Javadoc) {
+        source = android.sourceSets.main.allJava
+    }
+
+    task androidJavadocsJar(type: Jar, dependsOn: androidJavadocs) {
+        classifier = 'javadoc'
+        from androidJavadocs.destinationDir
+    }*/
+
+    task androidSourcesJar(type: Jar) {
+        classifier = 'sources'
+        from android.sourceSets.main.allSource
+    }
+
+    artifacts {
+        archives androidSourcesJar
+        //archives androidJavadocsJar
+    }
+}
+
